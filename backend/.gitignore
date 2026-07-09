@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.sqlite3
+.env
+/media/documents/*
+/media/reports/*
+/media/avatars/*
+!/media/documents/.gitkeep
+!/media/reports/.gitkeep
+!/media/avatars/.gitkeep
+/staticfiles/
+/logs/
+.venv/
+venv/
+*.egg-info/
+.DS_Store
