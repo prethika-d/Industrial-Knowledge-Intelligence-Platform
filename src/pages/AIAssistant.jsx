@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { FiSend, FiCpu, FiUser, FiFileText } from 'react-icons/fi'
+import api from '../services/api'
 
 const SUGGESTIONS = [
   'What is the torque spec for the hydraulic pump housing?',
@@ -26,25 +27,57 @@ export default function AIAssistant() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, isThinking])
 
-  const send = (text) => {
-    const value = text ?? input
-    if (!value.trim()) return
-    setMessages((prev) => [...prev, { id: Date.now(), role: 'user', text: value }])
-    setInput('')
-    setIsThinking(true)
-    setTimeout(() => {
-      setIsThinking(false)
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          role: 'assistant',
-          text: 'This is a frontend preview response. Once connected to the AI Query API, answers will be generated from your indexed documents with cited sources.',
-          sources: ['Compressor SOP-14.pdf', 'Line 3 Maintenance Log'],
-        },
-      ])
-    }, 1100)
-  }
+ const send = async (text) => {
+  const value = text ?? input
+
+  if (!value.trim()) return
+
+  setMessages((prev) => [
+    ...prev,
+    {
+      id: Date.now(),
+      role: 'user',
+      text: value,
+    },
+  ])
+
+  setInput('')
+  setIsThinking(true)
+
+  try {
+  const res = await api.post('/assistant/query/', {
+    query: value,
+  })
+
+  console.log('AI Response:', res.data)
+
+  setMessages((prev) => [
+    ...prev,
+    {
+      id: res.data.id || Date.now(),
+      role: 'assistant',
+      text: res.data.text,
+      sources: res.data.sources || [],
+    },
+  ])
+}
+catch (err) {
+  console.error(err)
+
+  setMessages((prev) => [
+    ...prev,
+    {
+      id: Date.now(),
+      role: 'assistant',
+      text: 'Failed to get a response from the AI service.',
+      sources: [],
+    },
+  ])
+}
+finally {
+  setIsThinking(false)
+}
+}
 
   return (
     <div className="flex flex-col h-[calc(100vh-160px)] panel overflow-hidden">
