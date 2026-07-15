@@ -1,97 +1,66 @@
-"""
-Service layer for the AI Assistant.
-
-`get_ai_provider()` returns a provider implementing `.answer(query, history)`.
-Swap the mock for a real integration by setting AI_PROVIDER in the environment
-to 'openai', 'claude', or 'ollama' and filling in the corresponding class below.
-"""
-import random
-from abc import ABC, abstractmethod
-
+import google.generativeai as genai
 from decouple import config
 
-MOCK_SOURCE_POOL = [
-    'Compressor SOP-14.pdf',
-    'Line 3 Maintenance Log',
-    'Boiler Safety Manual Rev.3',
-    'Hydraulic Pump Housing Spec Sheet',
-    'Unit 7 Inspection Report',
-]
-
-MOCK_RESPONSES = [
-    "Based on the indexed documentation, {query_snippet} is addressed in the referenced "
-    "manuals below. Torque and safety specs should always be cross-checked against the "
-    "latest revision before performing maintenance.",
-    "I found relevant guidance for '{query_snippet}' in your knowledge base. Please review "
-    "the cited sources for exact procedure steps and safety precautions.",
-    "Here's what the uploaded documentation says about '{query_snippet}'. Let me know if "
-    "you'd like more detail on any specific section.",
-]
+from apps.documents.models import Document
 
 
-class BaseAIProvider(ABC):
-    name = 'base'
+class GeminiProvider:
+    def __init__(self):
+        api_key = config("GEMINI_API_KEY")
+        genai.configure(api_key=api_key)
 
-    @abstractmethod
-    def answer(self, query: str, history: list[dict] | None = None) -> dict:
-        """Return {'response': str, 'sources': list[str], 'model_used': str}"""
-        raise NotImplementedError
+        self.model = genai.GenerativeModel("gemini-2.0-flash")
 
+    def answer(self, query, history=None):
 
-class MockAIProvider(BaseAIProvider):
-    """Deterministic-ish mock so the frontend has believable data end-to-end today."""
+        # Get latest indexed document
+        document = (
+            Document.objects
+            .filter(processing_status="indexed")
+            .order_by("-upload_date")
+            .first()
+        )
 
-    name = 'mock-assistant-v1'
+        if not document:
+            return {
+                "response": "No indexed document found. Please upload a document first.",
+                "sources": [],
+                "model_used": "Gemini",
+            }
 
-    def answer(self, query: str, history: list[dict] | None = None) -> dict:
-        snippet = query.strip().rstrip('?')
-        if len(snippet) > 60:
-            snippet = snippet[:60] + '...'
-        template = random.choice(MOCK_RESPONSES)
-        sources = random.sample(MOCK_SOURCE_POOL, k=min(2, len(MOCK_SOURCE_POOL)))
+        if not document.extracted_text:
+            return {
+                "response": "The uploaded document has no extracted text.",
+                "sources": [document.original_name],
+                "model_used": "Gemini",
+            }
+
+        prompt = f"""
+You are an industrial AI assistant.
+
+Answer ONLY using the information below.
+
+Document Name:
+{document.original_name}
+
+Document Content:
+{document.extracted_text}
+
+User Question:
+{query}
+
+If the answer is not available in the document, say:
+"I could not find that information in the uploaded document."
+"""
+
+        response = self.model.generate_content(prompt)
+
         return {
-            'response': template.format(query_snippet=snippet),
-            'sources': sources,
-            'model_used': self.name,
+            "response": response.text,
+            "sources": [document.original_name],
+            "model_used": "Gemini 1.5 Flash",
         }
 
 
-class OpenAIProvider(BaseAIProvider):
-    """Stub — wire up `openai` SDK here when ready."""
-
-    name = 'openai-gpt'
-
-    def answer(self, query: str, history: list[dict] | None = None) -> dict:
-        raise NotImplementedError('OpenAI provider not yet configured. Set OPENAI_API_KEY and implement this class.')
-
-
-class ClaudeProvider(BaseAIProvider):
-    """Stub — wire up the `anthropic` SDK here when ready."""
-
-    name = 'claude'
-
-    def answer(self, query: str, history: list[dict] | None = None) -> dict:
-        raise NotImplementedError('Claude provider not yet configured. Set ANTHROPIC_API_KEY and implement this class.')
-
-
-class OllamaProvider(BaseAIProvider):
-    """Stub — call a local Ollama server here when ready."""
-
-    name = 'ollama'
-
-    def answer(self, query: str, history: list[dict] | None = None) -> dict:
-        raise NotImplementedError('Ollama provider not yet configured. Set OLLAMA_HOST and implement this class.')
-
-
-_PROVIDERS = {
-    'mock': MockAIProvider,
-    'openai': OpenAIProvider,
-    'claude': ClaudeProvider,
-    'ollama': OllamaProvider,
-}
-
-
-def get_ai_provider() -> BaseAIProvider:
-    provider_key = config('AI_PROVIDER', default='mock')
-    provider_cls = _PROVIDERS.get(provider_key, MockAIProvider)
-    return provider_cls()
+def get_ai_provider():
+    return GeminiProvider()

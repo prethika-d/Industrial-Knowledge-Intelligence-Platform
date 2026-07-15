@@ -49,6 +49,8 @@ class Document(models.Model):
     processing_status = models.CharField(
         max_length=15, choices=ProcessingStatus.choices, default=ProcessingStatus.QUEUED
     )
+    extracted_text = models.TextField(blank=True, default="")
+    summary = models.TextField(blank=True, default="")
     upload_date = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

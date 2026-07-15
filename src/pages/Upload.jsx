@@ -1,273 +1,300 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   FiUploadCloud,
   FiFile,
   FiX,
   FiCheckCircle,
   FiLoader,
-} from 'react-icons/fi'
-import Section from '../components/ui/Section.jsx'
-import Badge from '../components/ui/Badge.jsx'
-import api from '../services/api'
+  FiTrash2,
+  FiRefreshCw,
+} from "react-icons/fi";
+
+import Section from "../components/ui/Section.jsx";
+import Badge from "../components/ui/Badge.jsx";
+import api from "../services/api";
 
 function formatSize(bytes) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  if (!bytes) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export default function UploadPage() {
-  const [isDragging, setIsDragging] = useState(false)
-  const [files, setFiles] = useState([])
-  const [category, setCategory] = useState('manual')
-  const inputRef = useRef(null)
+  const [files, setFiles] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [category, setCategory] = useState("manual");
+  const [isDragging, setIsDragging] = useState(false);
+
+  const inputRef = useRef(null);
+
+  const loadDocuments = async () => {
+    try {
+      setLoading(true);
+
+      const res = await api.get("/documents/");
+
+      const docs = res.data.results.map((doc) => ({
+        id: doc.id,
+        name: doc.original_name,
+        size: doc.size,
+        status: doc.processing_status,
+        uploaded: true,
+        uploadDate: doc.upload_date,
+        category: doc.category,
+      }));
+
+      setFiles(docs);
+    } catch (err) {
+      console.error("Failed loading documents", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDocuments();
+  }, []);
 
   const addFiles = useCallback((fileList) => {
     const incoming = Array.from(fileList).map((file) => ({
-      id: `${file.name}-${file.size}-${Date.now()}-${Math.random()}`,
+      id: `${file.name}-${Date.now()}`,
+      file,
       name: file.name,
       size: file.size,
-      file,
-      status: 'queued',
-    }))
+      status: "queued",
+      uploaded: false,
+    }));
 
-    setFiles((prev) => [...incoming, ...prev])
-  }, [])
-
-  const handleDrop = (e) => {
-    e.preventDefault()
-    setIsDragging(false)
-
-    if (e.dataTransfer.files?.length) {
-      addFiles(e.dataTransfer.files)
-    }
-  }
-
-  const removeFile = (id) => {
-    setFiles((prev) => prev.filter((f) => f.id !== id))
-  }
+    setFiles((prev) => [...incoming, ...prev]);
+  }, []);
 
   const uploadFiles = async () => {
-    const queuedFiles = files.filter(
-      (f) => f.status === 'queued'
-    )
+    const queue = files.filter(
+      (f) => !f.uploaded && f.status === "queued"
+    );
 
-    for (const fileItem of queuedFiles) {
+    if (!queue.length) return;
+
+    setUploading(true);
+
+    for (const item of queue) {
       try {
         setFiles((prev) =>
           prev.map((f) =>
-            f.id === fileItem.id
-              ? { ...f, status: 'uploading' }
+            f.id === item.id
+              ? { ...f, status: "processing" }
               : f
           )
-        )
+        );
 
-        const formData = new FormData()
+        const formData = new FormData();
 
-        formData.append('file', fileItem.file)
-        formData.append('category', category)
+        formData.append("file", item.file);
+        formData.append("category", category);
 
-        await api.post(
-          '/documents/upload/',
-          formData,
-          {
-            headers: {
-              'Content-Type': 'multipart/form-data',
-            },
-          }
-        )
+        await api.post("/documents/upload/", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
 
-        setFiles((prev) =>
-          prev.map((f) =>
-            f.id === fileItem.id
-              ? { ...f, status: 'done' }
-              : f
-          )
-        )
       } catch (err) {
-        console.error(err)
+        console.error(err);
 
-        setFiles((prev) =>
-          prev.map((f) =>
-            f.id === fileItem.id
-              ? { ...f, status: 'queued' }
-              : f
-          )
-        )
-
-        alert(`Failed to upload ${fileItem.name}`)
+        alert(`Failed to upload ${item.name}`);
       }
     }
-  }
+
+    await loadDocuments();
+
+    setUploading(false);
+  };
+
+  const deleteDocument = async (id) => {
+    if (!window.confirm("Delete this document?")) return;
+
+    try {
+      await api.delete(`/documents/${id}/`);
+
+      await loadDocuments();
+    } catch (err) {
+      console.error(err);
+
+      alert("Unable to delete document.");
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+
+    setIsDragging(false);
+
+    if (e.dataTransfer.files.length) {
+      addFiles(e.dataTransfer.files);
+    }
+  };
 
   const queuedCount = files.filter(
-    (f) => f.status === 'queued'
-  ).length
-
-  return (
+    (f) => !f.uploaded
+  ).length;
+    return (
     <div className="space-y-6">
+      {/* Upload Area */}
       <div
         onDragOver={(e) => {
-          e.preventDefault()
-          setIsDragging(true)
+          e.preventDefault();
+          setIsDragging(true);
         }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
-        className={`bracket-frame relative rounded-2xl border-2 border-dashed p-12 text-center transition-colors bg-blueprint ${
+        className={`rounded-2xl border-2 border-dashed p-12 text-center transition-all ${
           isDragging
-            ? 'border-signal-500 bg-signal-500/5'
-            : 'border-ink-600 bg-ink-800'
+            ? "border-blue-500 bg-blue-500/10"
+            : "border-gray-600 bg-gray-900"
         }`}
       >
-        <div className="mx-auto w-14 h-14 rounded-xl bg-ink-700 border border-ink-600 flex items-center justify-center mb-4">
-          <FiUploadCloud
-            size={24}
-            className="text-signal-500"
-          />
+        <div className="flex justify-center mb-5">
+          <FiUploadCloud size={48} className="text-blue-500" />
         </div>
 
-        <h2 className="font-display text-lg font-semibold text-paper-100">
-          Drag & drop documents here
+        <h2 className="text-2xl font-bold text-white">
+          Upload Industrial Documents
         </h2>
 
-        <p className="text-sm text-paper-500 mt-1.5">
-          Manuals, SOPs, inspection reports — PDF,
-          DOCX, or XLSX.
+        <p className="text-gray-400 mt-2">
+          Upload PDF, DOCX, TXT or XLSX documents.
         </p>
 
-        <div className="mt-4">
+        <div className="mt-6">
           <select
             value={category}
-            onChange={(e) =>
-              setCategory(e.target.value)
-            }
-            className="bg-ink-700 border border-ink-600 rounded-lg px-3 py-2 text-paper-100"
+            onChange={(e) => setCategory(e.target.value)}
+            className="px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white"
           >
-            <option value="Manual">
-              Manual
-            </option>
-            <option value="SOP">
-              SOP
-            </option>
-            <option value="Inspection">
-              Inspection
-            </option>
-            <option value="Maintenance">
-              Maintenance
-            </option>
-            <option value="Other">
-              Other
-            </option>
+            <option value="manual">Manual</option>
+            <option value="sop">SOP</option>
+            <option value="inspection_report">Inspection Report</option>
+            <option value="maintenance">Maintenance</option>
+            <option value="safety">Safety</option>
+            <option value="other">Other</option>
           </select>
         </div>
 
-        <div className="mt-6 flex items-center justify-center gap-3">
+        <div className="mt-6 flex justify-center gap-4">
           <button
-            type="button"
-            onClick={() =>
-              inputRef.current?.click()
-            }
-            className="inline-flex items-center gap-2 bg-signal-500 hover:bg-signal-600 text-onaccent font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors"
+            onClick={() => inputRef.current.click()}
+            className="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-semibold text-white"
           >
-            Choose files
+            Choose Files
           </button>
 
-          <input
-            ref={inputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={(e) =>
-              e.target.files &&
-              addFiles(e.target.files)
-            }
-          />
+          <button
+            onClick={uploadFiles}
+            disabled={!queuedCount || uploading}
+            className="bg-green-600 hover:bg-green-700 disabled:opacity-50 px-6 py-3 rounded-lg font-semibold text-white"
+          >
+            {uploading ? "Uploading..." : `Upload (${queuedCount})`}
+          </button>
+
+          <button
+            onClick={loadDocuments}
+            className="bg-gray-700 hover:bg-gray-600 px-5 py-3 rounded-lg"
+          >
+            <FiRefreshCw />
+          </button>
         </div>
+
+        <input
+          ref={inputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => addFiles(e.target.files)}
+        />
       </div>
 
+      {/* Uploaded Documents */}
       <Section
-        eyebrow="Queue"
-        title={`Files ${
-          files.length ? `(${files.length})` : ''
-        }`}
-        action={
-          queuedCount > 0 && (
-            <button
-              type="button"
-              onClick={uploadFiles}
-              className="inline-flex items-center gap-2 bg-steel-500 hover:bg-steel-600 text-onaccent font-semibold text-xs px-3.5 py-2 rounded-lg transition-colors"
-            >
-              Upload {queuedCount} file
-              {queuedCount > 1 ? 's' : ''}
-            </button>
-          )
-        }
+        eyebrow="Knowledge Base"
+        title="Uploaded Documents"
       >
-        {files.length === 0 ? (
-          <p className="text-sm text-paper-500 py-6 text-center">
-            No files yet. Uploaded documents
-            will appear here before processing.
-          </p>
+        {loading ? (
+          <div className="text-center py-10">
+            <FiLoader
+              className="animate-spin mx-auto text-blue-500"
+              size={30}
+            />
+            <p className="mt-3 text-gray-400">
+              Loading documents...
+            </p>
+          </div>
+        ) : files.length === 0 ? (
+          <div className="text-center py-10 text-gray-400">
+            No uploaded documents.
+          </div>
         ) : (
-          <div className="space-y-2">
-            {files.map((f) => (
+          <div className="space-y-3">
+            {files.map((file) => (
               <div
-                key={f.id}
-                className="flex items-center gap-3 px-4 py-3 bg-ink-700/60 border border-ink-600 rounded-lg"
+                key={file.id}
+                className="flex items-center justify-between p-4 rounded-xl bg-gray-900 border border-gray-700"
               >
-                <FiFile
-                  size={16}
-                  className="text-paper-500 shrink-0"
-                />
+                <div className="flex items-center gap-4">
+                  <FiFile
+                    size={22}
+                    className="text-blue-500"
+                  />
 
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm text-paper-100 truncate">
-                    {f.name}
-                  </p>
+                  <div>
+                    <h3 className="text-white font-medium">
+                      {file.name}
+                    </h3>
 
-                  <p className="readout text-[11px] text-paper-500">
-                    {formatSize(f.size)}
-                  </p>
+                    <p className="text-sm text-gray-400">
+                      {formatSize(file.size)}
+                    </p>
+                  </div>
                 </div>
 
-                {f.status === 'queued' && (
-                  <Badge tone="neutral">
-                    Queued
-                  </Badge>
-                )}
+                <div className="flex items-center gap-3">
 
-                {f.status ===
-                  'uploading' && (
-                  <Badge tone="steel">
-                    <FiLoader
-                      size={11}
-                      className="animate-spin"
-                    />
-                    Uploading
-                  </Badge>
-                )}
+                  {file.status === "queued" && (
+                    <Badge tone="neutral">
+                      Queued
+                    </Badge>
+                  )}
 
-                {f.status === 'done' && (
-                  <Badge tone="success">
-                    <FiCheckCircle size={11} />
-                    Indexed
-                  </Badge>
-                )}
+                  {file.status === "processing" && (
+                    <Badge tone="steel">
+                      <FiLoader className="animate-spin mr-1" />
+                      Processing
+                    </Badge>
+                  )}
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    removeFile(f.id)
-                  }
-                  className="text-paper-500 hover:text-danger transition-colors"
-                >
-                  <FiX size={16} />
-                </button>
+                  {(file.status === "indexed" ||
+                    file.status === "done") && (
+                    <Badge tone="success">
+                      <FiCheckCircle className="mr-1" />
+                      Indexed
+                    </Badge>
+                  )}
+
+                  <button
+                    onClick={() =>
+                      deleteDocument(file.id)
+                    }
+                    className="text-red-500 hover:text-red-400"
+                  >
+                    <FiTrash2 size={18} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         )}
       </Section>
     </div>
-  )
+  );
 }

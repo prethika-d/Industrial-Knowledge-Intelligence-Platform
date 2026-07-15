@@ -1,33 +1,70 @@
-import { Routes, Route } from 'react-router-dom'
-import Layout from './components/layout/Layout.jsx'
-import Dashboard from './pages/Dashboard.jsx'
-import Upload from './pages/Upload.jsx'
-import AIAssistant from './pages/AIAssistant.jsx'
-import Analytics from './pages/Analytics.jsx'
-import Reports from './pages/Reports.jsx'
-import Settings from './pages/Settings.jsx'
+import { Routes, Route, Navigate } from "react-router-dom";
+
+import Layout from "./components/layout/Layout";
+
+import Dashboard from "./pages/Dashboard";
+import Upload from "./pages/Upload";
+import AIAssistant from "./pages/AIAssistant";
+import Analytics from "./pages/Analytics";
+import Reports from "./pages/Reports";
+import Settings from "./pages/Settings";
+import Login from "./pages/Login";
+
+import ProtectRoute from "./components/ProtectRoute";
 
 export default function App() {
   return (
     <Routes>
-      <Route element={<Layout title="Dashboard" />}>
-        <Route path="/" element={<Dashboard />} />
+
+      {/* Login */}
+
+      <Route path="/login" element={<Login />} />
+
+      {/* Protect Routes */}
+
+      <Route
+        element={
+          <ProtectRoute>
+            <Layout />
+          </ProtectRoute>
+        }
+      >
+        <Route
+          index
+          element={<Dashboard />}
+        />
+
+        <Route
+          path="upload"
+          element={<Upload />}
+        />
+
+        <Route
+          path="assistant"
+          element={<AIAssistant />}
+        />
+
+        <Route
+          path="analytics"
+          element={<Analytics />}
+        />
+
+        <Route
+          path="reports"
+          element={<Reports />}
+        />
+
+        <Route
+          path="settings"
+          element={<Settings />}
+        />
       </Route>
-      <Route element={<Layout title="Upload Documents" subtitle="Add manuals, SOPs & reports to the knowledge base" />}>
-        <Route path="/upload" element={<Upload />} />
-      </Route>
-      <Route element={<Layout title="AI Assistant" subtitle="Ask questions grounded in your uploaded knowledge" />}>
-        <Route path="/assistant" element={<AIAssistant />} />
-      </Route>
-      <Route element={<Layout title="Analytics" subtitle="Platform usage & performance metrics" />}>
-        <Route path="/analytics" element={<Analytics />} />
-      </Route>
-      <Route element={<Layout title="Reports" subtitle="Generated intelligence reports" />}>
-        <Route path="/reports" element={<Reports />} />
-      </Route>
-      <Route element={<Layout title="Settings" subtitle="Manage your profile & platform preferences" />}>
-        <Route path="/settings" element={<Settings />} />
-      </Route>
+
+      <Route
+        path="*"
+        element={<Navigate to="/" />}
+      />
+
     </Routes>
-  )
+  );
 }

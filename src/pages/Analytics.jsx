@@ -1,244 +1,220 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState } from "react";
 import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-} from 'recharts'
-import {
-  FiTrendingUp,
-  FiClock,
-  FiTarget,
-  FiUsers,
-} from 'react-icons/fi'
-import StatReadout from '../components/ui/StatReadout.jsx'
-import Section from '../components/ui/Section.jsx'
-import { useTheme } from '../context/ThemeContext.jsx'
-import api from '../services/api'
+  FiFileText,
+  FiBarChart2,
+  FiDatabase,
+} from "react-icons/fi";
 
-const ICONS = {
-  target: FiTarget,
-  clock: FiClock,
-  users: FiUsers,
-  'trending-up': FiTrendingUp,
-}
+import Section from "../components/ui/Section.jsx";
+import api from "../services/api";
 
 export default function Analytics() {
-  const { theme } = useTheme()
-  const isLight = theme === 'light'
-
-  const [metrics, setMetrics] = useState([])
-  const [growthData, setGrowthData] = useState([])
-  const [deptUsage, setDeptUsage] = useState([])
+  const [documents, setDocuments] = useState([]);
+  const [reports, setReports] = useState([]);
 
   useEffect(() => {
-    fetchAnalytics()
-  }, [])
+    loadAnalytics();
+  }, []);
 
-  const fetchAnalytics = async () => {
+  const loadAnalytics = async () => {
     try {
-      const [overviewRes, chartsRes, usageRes] = await Promise.all([
-        api.get('/analytics/overview/'),
-        api.get('/analytics/charts/'),
-        api.get('/analytics/usage/'),
-      ])
+      const docs = await api.get("/documents/");
+      setDocuments(docs.data.results || []);
 
-      const metricsData =
-        overviewRes.data.metrics?.map((m) => ({
-          ...m,
-          icon: ICONS[m.icon] || FiTrendingUp,
-        })) || []
-
-      setMetrics(metricsData)
-      setGrowthData(chartsRes.data.growth || [])
-      setDeptUsage(usageRes.data.usage_by_department || [])
+      try {
+        const reps = await api.get("/reports/");
+        setReports(reps.data.results || reps.data || []);
+      } catch {
+        setReports([]);
+      }
     } catch (err) {
-      console.error('Analytics Error:', err)
+      console.error(err);
     }
-  }
+  };
 
-  const gridStroke = isLight ? '#E2E5EA' : '#242A33'
-  const axisStroke = isLight ? '#64748B' : '#5B6472'
+  const manuals = documents.filter(
+    (d) => d.category === "manual"
+  ).length;
 
-  const tooltipStyle = {
-    backgroundColor: isLight ? '#FFFFFF' : '#1C2128',
-    border: `1px solid ${isLight ? '#E2E5EA' : '#2E353F'}`,
-    borderRadius: 8,
-    fontSize: 12,
-    fontFamily: '"JetBrains Mono", monospace',
-    color: isLight ? '#14181D' : '#EDEFF2',
-  }
+  const sops = documents.filter(
+    (d) => d.category === "sop"
+  ).length;
+
+  const safety = documents.filter(
+    (d) => d.category === "safety"
+  ).length;
+
+  const maintenance = documents.filter(
+    (d) => d.category === "maintenance"
+  ).length;
+
+  const others = documents.filter(
+    (d) => d.category === "other"
+  ).length;
 
   return (
-    <div className="space-y-6">
-      {/* Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-        {metrics.map((m) => (
-          <StatReadout key={m.label} {...m} />
-        ))}
+    <div className="space-y-8">
+
+      {/* Analytics Overview */}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+        <div className="rounded-xl bg-ink-800 border border-ink-700 p-6">
+          <FiFileText
+            className="text-signal-500 mb-3"
+            size={30}
+          />
+
+          <h2 className="text-4xl font-bold text-paper-100">
+            {documents.length}
+          </h2>
+
+          <p className="text-paper-500 mt-2">
+            Total Documents
+          </p>
+        </div>
+
+        <div className="rounded-xl bg-ink-800 border border-ink-700 p-6">
+          <FiBarChart2
+            className="text-signal-500 mb-3"
+            size={30}
+          />
+
+          <h2 className="text-4xl font-bold text-paper-100">
+            {reports.length}
+          </h2>
+
+          <p className="text-paper-500 mt-2">
+            Reports Generated
+          </p>
+        </div>
+
+        <div className="rounded-xl bg-ink-800 border border-ink-700 p-6">
+          <FiDatabase
+            className="text-signal-500 mb-3"
+            size={30}
+          />
+
+          <h2 className="text-4xl font-bold text-paper-100">
+            {documents.length + reports.length}
+          </h2>
+
+          <p className="text-paper-500 mt-2">
+            Total Records
+          </p>
+        </div>
+
       </div>
 
-      {/* Growth Chart */}
-      <Section eyebrow="Trend" title="Platform Growth — Queries & Uploads">
-        <div className="h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart
-              data={growthData}
-              margin={{ left: -20, right: 10 }}
-            >
-              <defs>
-                <linearGradient
-                  id="queriesFill"
-                  x1="0"
-                  y1="0"
-                  x2="0"
-                  y2="1"
-                >
-                  <stop
-                    offset="0%"
-                    stopColor="#F5A524"
-                    stopOpacity={0.35}
-                  />
-                  <stop
-                    offset="100%"
-                    stopColor="#F5A524"
-                    stopOpacity={0}
-                  />
-                </linearGradient>
+      {/* Document Categories */}
 
-                <linearGradient
-                  id="uploadsFill"
-                  x1="0"
-                  y1="0"
-                  x2="0"
-                  y2="1"
-                >
-                  <stop
-                    offset="0%"
-                    stopColor="#4C9FE8"
-                    stopOpacity={0.35}
-                  />
-                  <stop
-                    offset="100%"
-                    stopColor="#4C9FE8"
-                    stopOpacity={0}
-                  />
-                </linearGradient>
-              </defs>
+      <Section
+        eyebrow="Documents"
+        title="Uploaded Document Categories"
+      >
 
-              <CartesianGrid
-                stroke={gridStroke}
-                vertical={false}
-              />
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-5">
 
-              <XAxis
-                dataKey="month"
-                stroke={axisStroke}
-                fontSize={11}
-                fontFamily="JetBrains Mono"
-                tickLine={false}
-                axisLine={false}
-              />
+          <div className="rounded-lg bg-ink-800 border border-ink-700 p-5 text-center">
+            <h3 className="text-3xl font-bold text-paper-100">
+              {manuals}
+            </h3>
 
-              <YAxis
-                stroke={axisStroke}
-                fontSize={11}
-                fontFamily="JetBrains Mono"
-                tickLine={false}
-                axisLine={false}
-              />
+            <p className="text-paper-500 mt-2">
+              Manuals
+            </p>
+          </div>
 
-              <Tooltip contentStyle={tooltipStyle} />
+          <div className="rounded-lg bg-ink-800 border border-ink-700 p-5 text-center">
+            <h3 className="text-3xl font-bold text-paper-100">
+              {sops}
+            </h3>
 
-              <Area
-                type="monotone"
-                dataKey="queries"
-                stroke="#F5A524"
-                fill="url(#queriesFill)"
-                strokeWidth={2}
-                name="AI Queries"
-              />
+            <p className="text-paper-500 mt-2">
+              SOPs
+            </p>
+          </div>
 
-              <Area
-                type="monotone"
-                dataKey="uploads"
-                stroke="#4C9FE8"
-                fill="url(#uploadsFill)"
-                strokeWidth={2}
-                name="Uploads"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <div className="rounded-lg bg-ink-800 border border-ink-700 p-5 text-center">
+            <h3 className="text-3xl font-bold text-paper-100">
+              {safety}
+            </h3>
+
+            <p className="text-paper-500 mt-2">
+              Safety
+            </p>
+          </div>
+
+          <div className="rounded-lg bg-ink-800 border border-ink-700 p-5 text-center">
+            <h3 className="text-3xl font-bold text-paper-100">
+              {maintenance}
+            </h3>
+
+            <p className="text-paper-500 mt-2">
+              Maintenance
+            </p>
+          </div>
+
+          <div className="rounded-lg bg-ink-800 border border-ink-700 p-5 text-center">
+            <h3 className="text-3xl font-bold text-paper-100">
+              {others}
+            </h3>
+
+            <p className="text-paper-500 mt-2">
+              Others
+            </p>
+          </div>
+
         </div>
 
-        <div className="flex items-center gap-5 mt-2">
-          <span className="flex items-center gap-2 text-xs text-paper-500">
-            <span className="w-2.5 h-2.5 rounded-sm bg-signal-500" />
-            AI Queries
-          </span>
-
-          <span className="flex items-center gap-2 text-xs text-paper-500">
-            <span className="w-2.5 h-2.5 rounded-sm bg-steel-500" />
-            Uploads
-          </span>
-        </div>
       </Section>
 
-      {/* Department Usage */}
-      <Section eyebrow="Breakdown" title="Usage by Department">
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={deptUsage}
-              layout="vertical"
-              margin={{ left: 10, right: 20 }}
-            >
-              <CartesianGrid
-                stroke={gridStroke}
-                horizontal={false}
-              />
+      {/* Recent Documents */}
 
-              <XAxis
-                type="number"
-                stroke={axisStroke}
-                fontSize={11}
-                fontFamily="JetBrains Mono"
-                tickLine={false}
-                axisLine={false}
-              />
+      <Section
+        eyebrow="Activity"
+        title="Recently Uploaded Documents"
+      >
 
-              <YAxis
-                type="category"
-                dataKey="dept"
-                stroke={axisStroke}
-                fontSize={12}
-                width={100}
-                tickLine={false}
-                axisLine={false}
-              />
+        {documents.length === 0 ? (
 
-              <Tooltip
-                contentStyle={tooltipStyle}
-                cursor={{
-                  fill: 'rgba(76,159,232,0.05)',
-                }}
-              />
+          <p className="text-paper-500">
+            No documents uploaded yet.
+          </p>
 
-              <Bar
-                dataKey="value"
-                fill="#4C9FE8"
-                radius={[0, 4, 4, 0]}
-                barSize={18}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        ) : (
+
+          <div className="space-y-4">
+
+            {documents.map((doc) => (
+
+              <div
+                key={doc.id}
+                className="border-b border-ink-700 pb-3"
+              >
+
+                <p className="text-paper-100 font-medium">
+                  {doc.original_name}
+                </p>
+
+                <p className="text-paper-500 text-sm">
+                  Category : {doc.category}
+                </p>
+
+                <p className="text-paper-500 text-sm">
+                  Status : {doc.processing_status}
+                </p>
+
+              </div>
+
+            ))}
+
+          </div>
+
+        )}
+
       </Section>
+
     </div>
-  )
+  );
 }

@@ -1,251 +1,194 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from "react";
 import {
   FiSearch,
-  FiDownload,
-  FiEye,
   FiFileText,
   FiCheckCircle,
-  FiClock,
-  FiAlertCircle,
-} from 'react-icons/fi'
-import Section from '../components/ui/Section.jsx'
-import Badge from '../components/ui/Badge.jsx'
-import StatReadout from '../components/ui/StatReadout.jsx'
-import api from '../services/api'
+} from "react-icons/fi";
 
-const STATUS_CONFIG = {
-  ready: {
-    tone: 'success',
-    label: 'Ready',
-    icon: FiCheckCircle,
-  },
-  processing: {
-    tone: 'steel',
-    label: 'Processing',
-    icon: FiClock,
-  },
-  failed: {
-    tone: 'danger',
-    label: 'Failed',
-    icon: FiAlertCircle,
-  },
-}
+import Section from "../components/ui/Section.jsx";
+import api from "../services/api";
 
 export default function Reports() {
-  const [reports, setReports] = useState([])
-  const [query, setQuery] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [documents, setDocuments] = useState([]);
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchReports()
-  }, [])
+    loadReports();
+  }, []);
 
-  const fetchReports = async () => {
+  const loadReports = async () => {
     try {
-      setLoading(true)
-
-      const res = await api.get('/reports/')
-
-      setReports(res.data.results || [])
+      const res = await api.get("/documents/");
+      setDocuments(res.data.results || []);
     } catch (err) {
-      console.error('Reports Error:', err)
+      console.error(err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const filtered = useMemo(() => {
-    return reports.filter(
-      (r) =>
-        r.name.toLowerCase().includes(query.toLowerCase()) ||
-        r.type.toLowerCase().includes(query.toLowerCase())
-    )
-  }, [reports, query])
-
-  const readyCount = reports.filter(
-    (r) => r.status === 'ready'
-  ).length
+    return documents.filter((doc) =>
+      doc.original_name.toLowerCase().includes(query.toLowerCase())
+    );
+  }, [documents, query]);
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <StatReadout
-          label="Total Reports"
-          value={reports.length}
-          unit="docs"
-          icon={FiFileText}
-        />
 
-        <StatReadout
-          label="Ready"
-          value={readyCount}
-          unit="docs"
-          delta="Available for download"
-          deltaTone="success"
-          icon={FiCheckCircle}
-        />
+      {/* Summary Cards */}
 
-        <StatReadout
-          label="Generated This Month"
-          value={reports.length}
-          unit="docs"
-          delta="+11 vs last month"
-          icon={FiClock}
-        />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+
+        <div className="rounded-xl border border-ink-700 bg-ink-800 p-6">
+          <h2 className="text-3xl font-bold text-paper-100">
+            {documents.length}
+          </h2>
+
+          <p className="text-paper-500 mt-2">
+            Total Reports
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-ink-700 bg-ink-800 p-6">
+          <h2 className="text-3xl font-bold text-paper-100">
+            {
+              documents.filter(
+                (d) => d.processing_status === "indexed"
+              ).length
+            }
+          </h2>
+
+          <p className="text-paper-500 mt-2">
+            Ready
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-ink-700 bg-ink-800 p-6">
+          <h2 className="text-3xl font-bold text-paper-100">
+            {
+              documents.filter(
+                (d) => d.processing_status !== "indexed"
+              ).length
+            }
+          </h2>
+
+          <p className="text-paper-500 mt-2">
+            Processing
+          </p>
+        </div>
+
       </div>
 
       <Section
-        eyebrow="Library"
-        title="All Reports"
+        eyebrow="Reports"
+        title="Generated Reports"
         action={
           <div className="flex items-center gap-2 bg-ink-700 border border-ink-600 rounded-lg px-3 py-2 w-64">
-            <FiSearch
-              size={14}
-              className="text-paper-500 shrink-0"
-            />
+
+            <FiSearch className="text-paper-500" />
 
             <input
+              className="bg-transparent w-full outline-none text-paper-100"
+              placeholder="Search reports..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search reports..."
-              className="bg-transparent outline-none text-sm text-paper-100 placeholder:text-paper-500 w-full"
             />
+
           </div>
         }
       >
-        <div className="overflow-x-auto -mx-2">
-          <table className="w-full text-sm">
+
+        {loading ? (
+
+          <div className="text-center py-10 text-paper-500">
+            Loading...
+          </div>
+
+        ) : filtered.length === 0 ? (
+
+          <div className="text-center py-10 text-paper-500">
+            No Reports Available
+          </div>
+
+        ) : (
+
+          <table className="w-full">
+
             <thead>
-              <tr className="text-left border-b border-ink-600">
-                <th className="eyebrow font-normal px-2 py-3">
-                  Report
-                </th>
-                <th className="eyebrow font-normal px-2 py-3">
-                  Type
-                </th>
-                <th className="eyebrow font-normal px-2 py-3">
-                  Date
-                </th>
-                <th className="eyebrow font-normal px-2 py-3">
-                  Status
-                </th>
-                <th className="eyebrow font-normal px-2 py-3 text-right">
-                  Actions
-                </th>
+
+              <tr className="border-b border-ink-700">
+
+                <th className="text-left py-3">Report</th>
+
+                <th className="text-left py-3">Category</th>
+
+                <th className="text-left py-3">Status</th>
+
+                <th className="text-left py-3">Uploaded</th>
+
               </tr>
+
             </thead>
 
             <tbody>
-              {loading && (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="text-center py-10 text-paper-500"
-                  >
-                    Loading reports...
+
+              {filtered.map((doc) => (
+
+                <tr
+                  key={doc.id}
+                  className="border-b border-ink-700"
+                >
+
+                  <td className="py-4">
+
+                    <div className="flex items-center gap-3">
+
+                      <FiFileText />
+
+                      {doc.original_name}
+
+                    </div>
+
                   </td>
+
+                  <td>{doc.category}</td>
+
+                  <td>
+
+                    {doc.processing_status === "indexed" ? (
+
+                      <span className="flex items-center gap-2 text-green-400">
+
+                        <FiCheckCircle />
+
+                        Ready
+
+                      </span>
+
+                    ) : (
+
+                      doc.processing_status
+
+                    )}
+
+                  </td>
+
+                  <td>{doc.upload_date?.substring(0, 10)}</td>
+
                 </tr>
-              )}
 
-              {!loading &&
-                filtered.map((r) => {
-                  const cfg =
-                    STATUS_CONFIG[r.status] ||
-                    STATUS_CONFIG.ready
+              ))}
 
-                  return (
-                    <tr
-                      key={r.id}
-                      className="border-b border-ink-700 last:border-0 hover:bg-ink-700/40 transition-colors"
-                    >
-                      <td className="px-2 py-3.5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-md bg-ink-700 border border-ink-600 flex items-center justify-center text-paper-500 shrink-0">
-                            <FiFileText size={14} />
-                          </div>
-
-                          <div className="min-w-0">
-                            <p className="text-paper-100 truncate">
-                              {r.name}
-                            </p>
-
-                            <p className="readout text-[11px] text-paper-500">
-                              {r.id}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="px-2 py-3.5 text-paper-500">
-                        {r.type}
-                      </td>
-
-                      <td className="px-2 py-3.5 readout text-paper-500">
-                        {r.date}
-                      </td>
-
-                      <td className="px-2 py-3.5">
-                        <Badge tone={cfg.tone}>
-                          <cfg.icon size={11} />{' '}
-                          {cfg.label}
-                        </Badge>
-                      </td>
-
-                      <td className="px-2 py-3.5">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              window.open(
-                                r.download_url,
-                                '_blank'
-                              )
-                            }
-                            aria-label={`View ${r.name}`}
-                            className="w-8 h-8 rounded-md flex items-center justify-center text-paper-500 hover:text-paper-100 hover:bg-ink-700 transition-colors"
-                          >
-                            <FiEye size={15} />
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled={
-                              r.status !== 'ready'
-                            }
-                            onClick={() => {
-                              if (r.download_url) {
-                                window.open(
-                                  r.download_url,
-                                  '_blank'
-                                )
-                              }
-                            }}
-                            aria-label={`Download ${r.name}`}
-                            className="w-8 h-8 rounded-md flex items-center justify-center text-paper-500 hover:text-paper-100 hover:bg-ink-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
-                          >
-                            <FiDownload size={15} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-
-              {!loading &&
-                filtered.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      className="text-center py-10 text-paper-500 text-sm"
-                    >
-                      No reports found.
-                    </td>
-                  </tr>
-                )}
             </tbody>
+
           </table>
-        </div>
+
+        )}
+
       </Section>
+
     </div>
-  )
+  );
 }
